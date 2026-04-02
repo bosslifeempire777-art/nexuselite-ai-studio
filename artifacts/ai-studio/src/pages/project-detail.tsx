@@ -6,8 +6,11 @@ import {
   Terminal, Folder, FileCode2, Play, ChevronRight, Loader2, StopCircle,
   ExternalLink, PanelRightClose, PanelRightOpen, Monitor, Tablet, Smartphone,
   RotateCcw, Send, Bot, User, Sparkles, Bug, Palette, FilePlus, Lock, Database,
-  Zap, Moon, Layers, Globe, Cpu, RefreshCw,
+  Zap, Moon, Layers, Globe, Cpu, RefreshCw, Rocket, Copy, Check, X,
+  Sword, Gamepad2, Music, Trophy, Map, Shield, Crosshair, Star,
 } from "lucide-react";
+import { useLocation } from "wouter";
+import { getToken } from "@/lib/auth";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 
@@ -27,18 +30,33 @@ const DEVICES: { id: Device; label: string; icon: typeof Monitor; width: number 
 ];
 
 const QUICK_ACTIONS = [
-  { label: "Add Feature",      icon: Sparkles, action: "Add Feature"      },
-  { label: "Fix Bug",          icon: Bug,      action: "Fix Bug"          },
-  { label: "Redesign UI",      icon: Palette,  action: "Redesign UI"      },
-  { label: "Add Page",         icon: FilePlus, action: "Add Page"         },
-  { label: "Add Auth",         icon: Lock,     action: "Add Authentication"},
-  { label: "Add Database",     icon: Database, action: "Add Database"     },
-  { label: "Optimize",         icon: Zap,      action: "Optimize Performance"},
-  { label: "Dark Mode",        icon: Moon,     action: "Add Dark Mode"    },
-  { label: "Mobile Layout",    icon: Smartphone,action:"Make Mobile Responsive"},
-  { label: "Add API",          icon: Globe,    action: "Add API Endpoint" },
-  { label: "Refactor Code",    icon: Layers,   action: "Refactor Code"    },
-  { label: "AI Integration",   icon: Cpu,      action: "Add AI Integration"},
+  { label: "Add Feature",      icon: Sparkles,   action: "Add Feature"      },
+  { label: "Fix Bug",          icon: Bug,        action: "Fix Bug"          },
+  { label: "Redesign UI",      icon: Palette,    action: "Redesign UI"      },
+  { label: "Add Page",         icon: FilePlus,   action: "Add Page"         },
+  { label: "Add Auth",         icon: Lock,       action: "Add Authentication"},
+  { label: "Add Database",     icon: Database,   action: "Add Database"     },
+  { label: "Optimize",         icon: Zap,        action: "Optimize Performance"},
+  { label: "Dark Mode",        icon: Moon,       action: "Add Dark Mode"    },
+  { label: "Mobile Layout",    icon: Smartphone, action: "Make Mobile Responsive"},
+  { label: "Add API",          icon: Globe,      action: "Add API Endpoint" },
+  { label: "Refactor Code",    icon: Layers,     action: "Refactor Code"    },
+  { label: "AI Integration",   icon: Cpu,        action: "Add AI Integration"},
+];
+
+const GAME_QUICK_ACTIONS = [
+  { label: "Add Enemy AI",     icon: Crosshair,  action: "Add enemy AI with pathfinding and attack behavior" },
+  { label: "Add Power-Up",     icon: Star,       action: "Add collectible power-ups with visual effects"    },
+  { label: "Add Score System", icon: Trophy,     action: "Add score tracking, high score, and leaderboard"  },
+  { label: "Add Level",        icon: Map,        action: "Add a new game level or stage"                    },
+  { label: "Add Sound FX",     icon: Music,      action: "Add sound effects and background music"           },
+  { label: "Add Boss Fight",   icon: Shield,     action: "Add a boss enemy with special attack patterns"    },
+  { label: "Add Inventory",    icon: Layers,     action: "Add an inventory or item collection system"       },
+  { label: "Add Multiplayer",  icon: Gamepad2,   action: "Add local 2-player multiplayer support"           },
+  { label: "Add Animations",   icon: Sparkles,   action: "Add character and object animations"              },
+  { label: "Add Game Menu",    icon: FilePlus,   action: "Add a main menu, pause menu, and game over screen"},
+  { label: "Add Particles",    icon: Zap,        action: "Add particle effects for explosions and impacts"  },
+  { label: "Optimize FPS",     icon: Cpu,        action: "Optimize game loop and rendering for better FPS"  },
 ];
 
 export default function ProjectDetail() {
@@ -62,24 +80,55 @@ export default function ProjectDetail() {
   });
   const { data: files } = useGetProjectFiles(id || "");
 
-  const [activeTab, setActiveTab]     = useState<Tab>('preview');
-  const [selectedFile, setSelectedFile] = useState<string | null>("src/App.tsx");
-  const [logsOpen, setLogsOpen]       = useState(false);
-  const [device, setDevice]           = useState<Device>('desktop');
+  const [activeTab, setActiveTab]       = useState<Tab>('preview');
+  const [selectedFile, setSelectedFile] = useState<string | null>("index.html");
+  const [logsOpen, setLogsOpen]         = useState(false);
+  const [device, setDevice]             = useState<Device>('desktop');
   const [isRebuilding, setIsRebuilding] = useState(false);
+  const [isDeploying, setIsDeploying]   = useState(false);
+  const [deployedUrl, setDeployedUrl]   = useState<string | null>(null);
+  const [showDeployModal, setShowDeployModal] = useState(false);
+  const [urlCopied, setUrlCopied]       = useState(false);
+
+  function authHeaders(): Record<string, string> {
+    const token = getToken();
+    return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+  }
 
   const rebuild = useCallback(async () => {
     if (!id || isRebuilding) return;
     setIsRebuilding(true);
     try {
-      await fetch(`/api/projects/${id}/rebuild`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      await fetch(`/api/projects/${id}/rebuild`, { method: "POST", headers: authHeaders() });
     } finally {
       setIsRebuilding(false);
     }
   }, [id, isRebuilding]);
+
+  const deploy = useCallback(async () => {
+    if (!id || isDeploying) return;
+    setIsDeploying(true);
+    try {
+      const res = await fetch(`/api/projects/${id}/deploy`, { method: "POST", headers: authHeaders() });
+      const data = await res.json();
+      if (res.ok && data.deployedUrl) {
+        setDeployedUrl(data.deployedUrl);
+        setShowDeployModal(true);
+      }
+    } catch {
+      // no-op
+    } finally {
+      setIsDeploying(false);
+    }
+  }, [id, isDeploying]);
+
+  const copyUrl = useCallback(() => {
+    if (!deployedUrl) return;
+    navigator.clipboard.writeText(deployedUrl).then(() => {
+      setUrlCopied(true);
+      setTimeout(() => setUrlCopied(false), 2000);
+    });
+  }, [deployedUrl]);
 
   if (isLoading) return (
     <AppLayout>
@@ -131,8 +180,56 @@ export default function ProjectDetail() {
     }
   };
 
+  // Derive the best code to show in the editor
+  const editorCode = (() => {
+    if (files && Array.isArray(files) && files.length > 0) {
+      const found = (files as any[]).find((f: any) => f.path === selectedFile) || files[0];
+      return (found as any)?.content || (project as any)?.generatedCode || MOCK_CODE;
+    }
+    return (project as any)?.generatedCode || MOCK_CODE;
+  })();
+
   return (
     <AppLayout>
+      {/* ── Deploy Success Modal ── */}
+      {showDeployModal && deployedUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-lg mx-4 bg-card border border-green-500/40 rounded-lg p-6 shadow-2xl cyber-clip">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Rocket className="w-5 h-5 text-green-400" />
+                <h3 className="font-display font-bold text-lg text-green-400">DEPLOYED SUCCESSFULLY</h3>
+              </div>
+              <button onClick={() => setShowDeployModal(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground font-mono mb-4">
+              Your app is live and accessible at this URL. Share it with anyone — no login required to view.
+            </p>
+            <div className="bg-background/60 border border-border/50 rounded flex items-center gap-2 p-3 mb-4">
+              <a href={deployedUrl} target="_blank" rel="noreferrer" className="flex-1 text-primary text-sm font-mono truncate hover:underline">{deployedUrl}</a>
+              <button onClick={copyUrl} className="shrink-0 text-muted-foreground hover:text-primary transition-colors">
+                {urlCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <a href={deployedUrl} target="_blank" rel="noreferrer" className="flex-1">
+                <button className="w-full flex items-center justify-center gap-2 py-2 bg-green-500/20 border border-green-500/40 text-green-400 text-sm font-mono rounded hover:bg-green-500/30 transition-colors">
+                  <ExternalLink className="w-4 h-4" /> Open Live App
+                </button>
+              </a>
+              <button onClick={() => setShowDeployModal(false)} className="flex-1 py-2 border border-border/50 text-muted-foreground text-sm font-mono rounded hover:border-border transition-colors">
+                Close
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground/40 font-mono mt-4 text-center">
+              For a custom domain, deploy to production from the top menu.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col h-[calc(100vh-6rem)] -m-6">
 
         {/* ── Top Header ── */}
@@ -169,11 +266,29 @@ export default function ProjectDetail() {
                 <RefreshCw className={`w-3.5 h-3.5 ${isRebuilding || project.status === 'building' ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">{isRebuilding || project.status === 'building' ? 'Building...' : 'Rebuild'}</span>
               </Button>
-              <Button size="sm" className="h-7 px-3 text-xs glow-primary-hover gap-1">
-                <Play className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Deploy</span>
+              <Button
+                size="sm"
+                onClick={deploy}
+                disabled={isDeploying || project.status === 'building' || !project.generatedCode}
+                title="Deploy & get shareable URL"
+                className="h-7 px-3 text-xs glow-primary-hover gap-1 bg-primary text-background hover:brightness-110"
+              >
+                {isDeploying
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden sm:inline">Deploying...</span></>
+                  : <><Rocket className="w-3.5 h-3.5" /><span className="hidden sm:inline">{project.status === 'deployed' ? 'Redeploy' : 'Deploy'}</span></>
+                }
               </Button>
             </div>
           </div>
+
+          {/* Deploy success banner */}
+          {project.status === 'deployed' && project.deployedUrl && !showDeployModal && (
+            <div className="flex items-center gap-2 text-xs font-mono bg-green-500/10 border border-green-500/30 rounded px-3 py-1.5 text-green-400">
+              <Rocket className="w-3 h-3 shrink-0" />
+              <span className="truncate">Live: <a href={project.deployedUrl} target="_blank" rel="noreferrer" className="underline hover:text-green-300">{project.deployedUrl}</a></span>
+              <button onClick={() => { setDeployedUrl(project.deployedUrl!); setShowDeployModal(true); }} className="ml-auto shrink-0 hover:text-green-300">Share</button>
+            </div>
+          )}
 
           {/* Row 2: device + preview controls (only when preview tab active) */}
           {activeTab === 'preview' && (
@@ -252,8 +367,9 @@ export default function ProjectDetail() {
                 <textarea
                   className="flex-1 w-full bg-transparent p-4 font-mono text-sm text-[#E0E2EA] resize-none outline-none selection:bg-primary/30"
                   spellCheck={false}
-                  defaultValue={MOCK_CODE}
+                  value={editorCode}
                   readOnly
+                  onChange={() => {}}
                 />
               </div>
 
@@ -285,7 +401,7 @@ export default function ProjectDetail() {
                         src={previewUrl}
                         className="w-full h-full border-0 block"
                         title={`Preview: ${project.name}`}
-                        sandbox="allow-scripts allow-forms allow-modals allow-pointer-lock"
+                        sandbox="allow-scripts allow-forms allow-same-origin allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox"
                       />
                     </DeviceFrame>
                   </>
@@ -309,7 +425,7 @@ export default function ProjectDetail() {
 
           {/* AGENT TAB — chat terminal */}
           {activeTab === 'agent' && (
-            <AgentTerminal projectId={project.id} projectName={project.name} />
+            <AgentTerminal projectId={project.id} projectName={project.name} projectStatus={project.status} projectType={project.type} onBuildComplete={refetch} />
           )}
         </div>
       </div>
@@ -435,7 +551,17 @@ function getStepsForMessage(text: string): string[] {
 }
 
 /* ── Agent Terminal ── */
-function AgentTerminal({ projectId, projectName }: { projectId: string; projectName: string }) {
+function AgentTerminal({
+  projectId, projectName, projectStatus, projectType, onBuildComplete,
+}: {
+  projectId: string;
+  projectName: string;
+  projectStatus: string;
+  projectType?: string;
+  onBuildComplete?: () => void;
+}) {
+  const [, navigate] = useLocation();
+  const isGame = projectType === "game";
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "agent",
@@ -443,17 +569,56 @@ function AgentTerminal({ projectId, projectName }: { projectId: string; projectN
       timestamp: new Date().toISOString(),
     },
   ]);
+  const [buildLogs, setBuildLogs] = useState<string[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeSteps, setActiveSteps] = useState<string[]>([]);
   const [stepsDone, setStepsDone] = useState(false);
-  const bottomRef  = useRef<HTMLDivElement>(null);
-  const inputRef   = useRef<HTMLTextAreaElement>(null);
+  const bottomRef   = useRef<HTMLDivElement>(null);
+  const inputRef    = useRef<HTMLTextAreaElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const esRef       = useRef<EventSource | null>(null);
+
+  // Subscribe to SSE build stream
+  useEffect(() => {
+    if (!projectId) return;
+
+    setIsStreaming(projectStatus === "building");
+    setBuildLogs([]);
+
+    const es = new EventSource(`/api/projects/${projectId}/build-stream`);
+    esRef.current = es;
+
+    es.onmessage = (e) => {
+      try {
+        const { msg } = JSON.parse(e.data) as { msg: string; ts: number };
+        if (msg === "__DONE__") {
+          setIsStreaming(false);
+          es.close();
+          onBuildComplete?.();
+          return;
+        }
+        setBuildLogs(prev => [...prev, msg]);
+      } catch {
+        // ignore malformed
+      }
+    };
+
+    es.onerror = () => {
+      setIsStreaming(false);
+      es.close();
+    };
+
+    return () => {
+      es.close();
+      esRef.current = null;
+    };
+  }, [projectId, projectStatus]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, activeSteps]);
+  }, [messages, activeSteps, buildLogs]);
 
   const sendMessage = useCallback(async (text: string, action?: string) => {
     const userText = (text.trim() || action || "").trim();
@@ -482,9 +647,11 @@ function AgentTerminal({ projectId, projectName }: { projectId: string; projectN
 
     let apiReply = "Task received — agents are processing your request.";
     try {
+      const token = typeof localStorage !== "undefined" ? localStorage.getItem("nexus-token") : null;
+      const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await fetch(`/api/projects/${projectId}/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader },
         body: JSON.stringify({ message: text.trim() || undefined, action }),
       });
       const data = await res.json();
@@ -526,20 +693,82 @@ function AgentTerminal({ projectId, projectName }: { projectId: string; projectN
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#06060f]">
 
+      {/* Live Build Log Panel — visible during builds */}
+      {buildLogs.length > 0 && (
+        <div className="shrink-0 border-b border-primary/20 bg-primary/5 max-h-48 overflow-y-auto">
+          <div className="sticky top-0 bg-[#06060f]/90 backdrop-blur px-3 pt-2 pb-1 border-b border-primary/10">
+            <p className="text-[10px] font-mono text-primary uppercase tracking-widest flex items-center gap-1.5">
+              {isStreaming
+                ? <><span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse inline-block" /> Agents Building Live…</>
+                : <><span className="w-1.5 h-1.5 bg-green-400 rounded-full inline-block" /> Build Complete</>
+              }
+            </p>
+          </div>
+          <div className="px-3 pb-2 pt-1 space-y-0.5">
+            {buildLogs.map((log, i) => {
+              const isSuccess = log.includes("✅") || log.includes("🎉");
+              const isError   = log.includes("❌") || log.includes("Error");
+              const agent     = log.match(/\[([^\]]+)\]/)?.[1] || "";
+              const msgBody   = log.replace(/\[[^\]]+\]\s?/, "");
+              return (
+                <div key={i} className={`flex items-start gap-2 text-[11px] font-mono py-0.5 ${
+                  isError ? "text-red-400" : isSuccess ? "text-green-400" : "text-muted-foreground"
+                }`}>
+                  <span className={`shrink-0 text-[10px] font-bold min-w-[120px] ${
+                    isError ? "text-red-400/80" : isSuccess ? "text-green-400/80" : "text-primary/70"
+                  }`}>{agent || "System"}</span>
+                  <span className="flex-1 leading-relaxed">{msgBody}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Character Studio widget — game projects only */}
+      {isGame && (
+        <div className="shrink-0 border-b border-primary/20 bg-gradient-to-r from-primary/8 via-primary/5 to-transparent p-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+              <Sword className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-primary font-display tracking-wide">Character Studio</p>
+              <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                Create, generate &amp; customize characters for this game — AI art, pixel sprites, uploads &amp; manual editing
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("/characters")}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-[11px] font-bold rounded hover:brightness-110 transition-all"
+            >
+              <Sword className="w-3 h-3" /> Open Studio
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Quick actions grid */}
       <div className="shrink-0 border-b border-border/40 bg-secondary/10 p-3">
         <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
-          <Sparkles className="w-3 h-3 text-primary" /> Quick Actions
+          {isGame
+            ? <><Gamepad2 className="w-3 h-3 text-primary" /> Game Actions</>
+            : <><Sparkles className="w-3 h-3 text-primary" /> Quick Actions</>
+          }
         </p>
         <div className="flex flex-wrap gap-1.5">
-          {QUICK_ACTIONS.map(qa => {
+          {(isGame ? GAME_QUICK_ACTIONS : QUICK_ACTIONS).map(qa => {
             const Icon = qa.icon;
             return (
               <button
                 key={qa.action}
                 disabled={isLoading}
                 onClick={() => sendMessage("", qa.action)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-border/40 bg-background/40 text-xs text-muted-foreground font-mono hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-xs font-mono transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                  isGame
+                    ? "border-accent/30 bg-background/40 text-muted-foreground hover:border-accent/60 hover:text-accent hover:bg-accent/5"
+                    : "border-border/40 bg-background/40 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5"
+                }`}
               >
                 <Icon className="w-3 h-3" />
                 {qa.label}
@@ -547,6 +776,30 @@ function AgentTerminal({ projectId, projectName }: { projectId: string; projectN
             );
           })}
         </div>
+        {/* Also show standard actions toggle for game projects */}
+        {isGame && (
+          <details className="mt-2">
+            <summary className="text-[9px] text-muted-foreground/40 cursor-pointer hover:text-muted-foreground/70 transition-colors select-none">
+              + show general actions
+            </summary>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {QUICK_ACTIONS.map(qa => {
+                const Icon = qa.icon;
+                return (
+                  <button
+                    key={qa.action}
+                    disabled={isLoading}
+                    onClick={() => sendMessage("", qa.action)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-border/30 bg-background/30 text-[11px] text-muted-foreground/60 font-mono hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-40"
+                  >
+                    <Icon className="w-3 h-3" />
+                    {qa.label}
+                  </button>
+                );
+              })}
+            </div>
+          </details>
+        )}
       </div>
 
       {/* Messages */}
